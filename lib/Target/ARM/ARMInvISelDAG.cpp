@@ -22,6 +22,23 @@ namespace fracture {
 
 #include "ARMGenInvISel.inc"
 
+
+//Coppied these from https://github.com/llvm-mirror/llvm/blob/f65712bfe35a038e5895ffc859bcf43fda35a8fd/lib/Target/ARM/MCTargetDesc/ARMAddressingModes.h#L413
+//static inline unsigned getAM2Offset(unsigned AM2Opc) {
+//  return AM2Opc & ((1 << 12)-1);
+//}
+//static inline unsigned getAM2Op(unsigned AM2Opc) {
+//  return ((AM2Opc >> 12) & 1) ? 1 : 0;
+//}
+//static inline unsigned getAM2ShiftOpc(unsigned AM2Opc) {
+//  return ((AM2Opc >> 13) & 7);
+//}
+//static inline unsigned getAM2IdxMode(unsigned AM2Opc) {
+//  return (AM2Opc >> 16);
+//}
+
+
+
 SDNode* ARMInvISelDAG::Transmogrify(SDNode *N) {
   // Insert fixups here
   if (!N->isMachineOpcode()) {
@@ -42,8 +59,12 @@ SDNode* ARMInvISelDAG::Transmogrify(SDNode *N) {
   }
 
   uint16_t TargetOpc = N->getMachineOpcode();
+  //outs() << "Next Opc: " << TargetOpc << "\n";
+
   switch(TargetOpc) {
-    default: break;
+    default:
+        outs() << "To tablegen Opc: " << TargetOpc << "\n";
+    	break;
     case ARM::CMPrr:
     case ARM::CMPri: {
       // NOTE: Pattern in ARM DAG Selector is busted as not handling CPSR
@@ -60,14 +81,14 @@ SDNode* ARMInvISelDAG::Transmogrify(SDNode *N) {
     case ARM::t2Bcc:
     case ARM::tBcc:
     case ARM::Bcc: {
-      // Pattern: (Bcc:void (bb:Other):$dst, (imm:i32):$cc)
-      // Emits: (ARMbrcond:void (bb:Other):$dst, (imm:i32):$cc)
-
-      // Pattern: (tBcc:void (bb:Other):$dst, (imm:i32):$cc)
-      // Emits: (ARMbrcond:void (bb:Other):$dst, (imm:i32):$cc)
-
-      // Pattern: (t2Bcc:void (bb:Other):$dst, (imm:i32):$cc)
-      // Emits: (ARMbrcond:void (bb:Other):$dst, (imm:i32):$cc)
+//       Pattern: (Bcc:void (bb:Other):$dst, (imm:i32):$cc)
+//       Emits: (ARMbrcond:void (bb:Other):$dst, (imm:i32):$cc)
+//
+//       Pattern: (tBcc:void (bb:Other):$dst, (imm:i32):$cc)
+//       Emits: (ARMbrcond:void (bb:Other):$dst, (imm:i32):$cc)
+//
+//       Pattern: (t2Bcc:void (bb:Other):$dst, (imm:i32):$cc)
+//       Emits: (ARMbrcond:void (bb:Other):$dst, (imm:i32):$cc)
       unsigned Opc = ARMISD::BRCOND;
       // Bcc is a control flow instruction, therefore
       // the first operand is always the pointer to the prev inst node.
@@ -125,6 +146,131 @@ SDNode* ARMInvISelDAG::Transmogrify(SDNode *N) {
 
       return NULL;
     }
+    case ARM::STRD_POST: {
+      // Store register , decrement, post index
+      // mem[Rn+Rm/#imm] = Rd (32 bit copy)
+   	  //
+      SDValue Chain = N->getOperand(0);
+      SDValue Tgt1 = N->getOperand(1);
+      SDValue Tgt2 = N->getOperand(2);
+      SDValue Base = N->getOperand(3);
+      SDValue Offset = N->getOperand(4);
+
+      SDLoc SL(N);
+      SDVTList AddVTList = CurDAG->getVTList(MVT::i32);
+
+      SDValue Addr1 = CurDAG->getNode(ISD::SUB, SL, AddVTList, Base, Offset);
+
+      // memops might be null here, but not sure if we need to check.
+      const MachineSDNode *MN = dyn_cast<MachineSDNode>(N);
+      MachineMemOperand *MMO = NULL;
+      if (MN->memoperands_empty()) {
+    	  errs() << "NO MACHINE OPS for STRD_POST!\n";
+         }
+      else {
+           MMO = *(MN->memoperands_begin());
+         }
+      SDValue Four = CurDAG->getConstant(4, MVT::i32, false, false);
+      SDValue Store = CurDAG->getStore(Chain, SL, Tgt1, Addr1, MMO);
+      SDValue Addr2 = CurDAG->getNode(ISD::ADD, SL, AddVTList, Addr1, Four);
+      SDValue Store2 = CurDAG->getStore(Store, SL, Tgt2, Addr2, MMO);
+      SDValue Addr3 = CurDAG->getNode(ISD::ADD, SL, AddVTList, Addr2, Four);
+      CurDAG->ReplaceAllUsesOfValueWith(SDValue(N, 0), Addr3);
+      CurDAG->ReplaceAllUsesOfValueWith(SDValue(N, 1), Store2);
+      FixChainOp(Store.getNode());
+      FixChainOp(Store2.getNode());
+
+         return NULL;
+       }
+
+
+
+    case ARM::LDR_POST_IMM: {
+
+//    SDValue Chain = N->getOperand(0);
+//    SDValue Tgt1 = N->getOperand(1);
+//    SDValue AM2Offset = N->getOperand(3);
+//    SDValue Offset = N->getOperand(4);
+
+//           unsigned AM2var = cast<ConstantSDNode>(AM2Offset)->getZExtValue();
+//	  	     outs() << "offset:" << getAM2Offset(AM2var);
+//	   	     outs() << "opcode:" << getAM2Op(AM2var);
+//           outs() << "Shiftop:" << getAM2ShiftOpc(AM2var);
+//	    	 outs() << "index:" << getAM2IdxMode(AM2var);
+//           SDLoc SL(N);
+//           SDVTList AddVTList = CurDAG->getVTList(MVT::i32);
+//
+//          SDValue Addr = CurDAG->getNode(ISD::ADD, SL, AddVTList, Base, Offset);
+//          CurDAG->ReplaceAllUsesOfValueWith(SDValue(N, 0), Addr);
+//
+//          // memops might be null here, but not sure if we need to check.
+//          const MachineSDNode *MN = dyn_cast<MachineSDNode>(N);
+//          MachineMemOperand *MMO = NULL;
+//          if (MN->memoperands_empty()) {
+//            errs() << "NO MACHINE OPS for STR_PRE_IMM!\n";
+//          } else {
+//            MMO = *(MN->memoperands_begin());
+//          }
+//          SDValue Load1 = CurDAG->getLoad();
+//          // getLoad is supposed to be filled with
+//          // llvm::EVT, llvm::SDLoc, llvm::SDValue, llvm::SDValue, llvm::MachinePointerInfo,
+//          // bool, bool, bool, unsigned int, const llvm::MDNode *, const llvm::MDNode *
+//
+//          SDValue Load2 = CurDAG->getLoad(Chain, SL, Tgt2, Addr, MMO);
+//          CurDAG->ReplaceAllUsesOfValueWith(SDValue(N, 1), Store);
+//
+          return NULL;
+       }
+
+//    case ARM::LDRi12: {
+//      //load the Ptr
+//      //ldr chain [ptr offset]
+//
+//      SDValue Chain 	  = N->getOperand(0);
+//      SDValue Ptr       = N->getOperand(1);
+//      SDValue Offset    = N->getOperand(2);
+//      SDLoc SL(N);
+//  	  SDVTList VTList = CurDAG->getVTList(MVT::i32);
+//
+//
+//  	  EVT LdType = N->getValueType(0);
+//
+//  	  SDValue Addr = CurDAG->getNode(ISD::ADD, SL, VTList, Ptr, Offset);
+//   	  SDValue Ldr = CurDAG->getLoad(LdType, SL, Chain, Addr,
+//          	        MachinePointerInfo::getConstantPool(), false, false, true, 0, 0);
+//      CurDAG->ReplaceAllUsesOfValueWith(SDValue(N, 0), Ldr);
+//      CurDAG->ReplaceAllUsesOfValueWith(SDValue(N, 1), SDValue(Ldr.getNode(),1));
+//      FixChainOp(Ldr.getNode());
+//
+//          	return NULL;
+//      }
+    case ARM::STRi12: {
+      //store the tgt filled with the the stack space indicated by  base + offset
+      //str Tgt [base offset]
+
+      SDValue Chain = N->getOperand(0);
+      SDValue Tgt = N->getOperand(1);
+      SDValue Base = N->getOperand(2);
+      SDValue Offset = N->getOperand(3);
+
+      SDLoc SL(N);
+      SDVTList AddVTList = CurDAG->getVTList(MVT::i32);
+      SDValue Addr = CurDAG->getNode(ISD::ADD, SL, AddVTList, Base, Offset);
+
+
+      // memops might be null here, but not sure if we need to check.
+      const MachineSDNode *MN = dyn_cast<MachineSDNode>(N);
+      MachineMemOperand *MMO = NULL;
+      if (MN->memoperands_empty()) {
+        errs() << "NO MACHINE OPS for STRi12!\n";
+    	    } else {
+    	      MMO = *(MN->memoperands_begin());
+    	    }
+      SDValue Store = CurDAG->getStore(Chain, SL, Tgt, Addr, MMO);
+      CurDAG->ReplaceAllUsesOfValueWith(SDValue(N, 0), Store);
+      FixChainOp(Store.getNode());
+	return NULL;
+      }
     case ARM::LDMIA:            // Load variations...
                             //   LD?  Inc?   Bef?    WB?
       InvLoadOrStoreMultiple(N, true, true, false, false);
@@ -175,39 +321,44 @@ SDNode* ARMInvISelDAG::Transmogrify(SDNode *N) {
       InvLoadOrStoreMultiple(N, false, false, true, true);
       return NULL;
     case ARM::MOVr:
-    case ARM::MOVi: {
-      // Note: Cannot use dummy arithmetic here becuase it will get folded
-      // (removed) from the DAG. Instead we search for a CopyToReg, if it
-      // exists we set it's debug location to the Mov, and if it doesn't we
-      // print an error and do nothing.
-      SDNode *C2R = NULL;
-      for (SDNode::use_iterator I = N->use_begin(), E = N->use_end(); I != E;
-           ++I) {
-        if (I->getOpcode() == ISD::CopyToReg) {
-          C2R = *I;
-          break;
-        }
-      }
-      assert(C2R && "Move instruction without CopytoReg!");
-      C2R->setDebugLoc(N->getDebugLoc());
-      CurDAG->ReplaceAllUsesOfValueWith(SDValue(N,0), N->getOperand(0));
-      return NULL;
-      break;
-    }
+       case ARM::MOVi: {
+         // Note: Cannot use dummy arithmetic here because it will get folded
+         // (removed) from the DAG. Instead we search for a CopyToReg, if it
+         // exists we set it's debug location to the Mov, and if it doesn't we
+         // print an error and do nothing.
+         SDNode *C2R = NULL;
+         for (SDNode::use_iterator I = N->use_begin(), E = N->use_end(); I != E;
+              ++I) {
+           if (I->getOpcode() == ISD::CopyToReg) {
+             C2R = *I;
+             break;
+           }
+         }
+         assert(C2R && "Move instruction without CopytoReg!");
+         C2R->setDebugLoc(N->getDebugLoc());
+         CurDAG->ReplaceAllUsesOfValueWith(SDValue(N,0), N->getOperand(0));
+         return NULL;
+         break;
+       }
     case ARM::BL:
+      //missing open bracket {
       SDValue Chain = N->getOperand(0);
       SDValue Offset = N->getOperand(1);
       SDLoc SL(N);
       SDVTList VTList = CurDAG->getVTList(MVT::i32, MVT::Other);
       SDValue CallNode =
-        CurDAG->getNode(ARMISD::CALL, SL, VTList, Offset, Chain);
+      CurDAG->getNode(ARMISD::CALL, SL, VTList, Offset, Chain);
       CurDAG->ReplaceAllUsesOfValueWith(SDValue(N, 0),
-        SDValue(CallNode.getNode(), 0));
+      SDValue(CallNode.getNode(), 0));
       CurDAG->ReplaceAllUsesOfValueWith(SDValue(N, 1),
-        SDValue(CallNode.getNode(), 1));
+      SDValue(CallNode.getNode(), 1));
       return NULL;
   }
 
+
+  //If Transmogrify fails to find the opcode then we will send it to the
+  //tablegen file to search for a match. If this fails, then fracture will
+  // crash with a debug code.
   SDNode* TheRes = InvertCode(N);
   return TheRes;
 }
@@ -350,7 +501,7 @@ bool ARMInvISelDAG::SelectLdStSOReg(SDValue N, SDValue &Base, SDValue &Offset,
   //     !CurDAG->isBaseWithConstantOffset(N))
   //   return false;
 
-  // // Leave simple R +/- imm12 operands for LDRi12
+  //   // Leave simple R +/- imm12 operands for LDRi12
   // if (N.getOpcode() == ISD::ADD || N.getOpcode() == ISD::OR) {
   //   int RHSC;
   //   if (isScaledConstantInRange(N.getOperand(1), /*Scale=*/1,
@@ -608,6 +759,7 @@ bool ARMInvISelDAG::SelectAddrMode2OffsetImmPre(SDNode *Op, SDValue N,
 }
 
 
+
 bool ARMInvISelDAG::SelectAddrMode2OffsetImm(SDNode *Op, SDValue N,
                                             SDValue &Offset, SDValue &Opc) {
   // unsigned Opcode = Op->getOpcode();
@@ -624,6 +776,8 @@ bool ARMInvISelDAG::SelectAddrMode2OffsetImm(SDNode *Op, SDValue N,
   //                                   MVT::i32);
   //   return true;
   // }
+
+
 
   return false;
 }
@@ -1159,7 +1313,6 @@ SDNode *ARMInvISelDAG::SelectARMIndexedLoad(SDNode *N) {
   ISD::MemIndexedMode AM = LD->getAddressingMode();
   if (AM == ISD::UNINDEXED)
     return NULL;
-
   EVT LoadedVT = LD->getMemoryVT();
   SDValue Offset, AMOpc;
   bool isPre = (AM == ISD::PRE_INC) || (AM == ISD::PRE_DEC);

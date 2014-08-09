@@ -63,8 +63,14 @@ public:
 
 
   IRBuilder<>* getIRB() { return IRB; }
-  void setDAG(SelectionDAG *NewDAG) { DAG = NewDAG; }
+  void setDAG(SelectionDAG *NewDAG) {
+    EndHandleDAG = false;
+    DAG = NewDAG;
+  }
+
+  void endDAG() { assert(EndHandleDAG && "Reached End of DAG and did not see handle node."); }
 protected:
+  bool EndHandleDAG;
   Decompiler *Dec;
   SelectionDAG *DAG;
   IRBuilder<> *IRB;
@@ -143,6 +149,7 @@ protected:
   Value* visitFTRUNC(const SDNode *N);
   Value* visitFFLOOR(const SDNode *N);
   Value* visitBRCOND(const SDNode *N);
+  Value* visitBR(const SDNode *N);
   Value* visitBR_CC(const SDNode *N);
   Value* visitLOAD(const SDNode *N);
   Value* visitSTORE(const SDNode *N);
@@ -153,6 +160,7 @@ protected:
   Value* visitEXTRACT_SUBVECTOR(const SDNode *N);
   Value* visitVECTOR_SHUFFLE(const SDNode *N);
   Value* visitRegister(const SDNode *N);
+  Value* visitCALL(const SDNode *N);
 
   /// Error printing
   raw_ostream &Infos, &Errs;

@@ -130,7 +130,7 @@ public:
 
   /// \brief Symbol accessors
   std::string getSymbolName(unsigned Address);
-  StringRef getFunctionName(unsigned Address);
+  const StringRef getFunctionName(unsigned Address) const;
 
   /// \brief Set the current section reference in the Disassembler
   ///
@@ -148,7 +148,22 @@ public:
   MCDirector* getMCDirector() const { return MC; }
   Module* getModule() const { return TheModule; }
 
+  const MachineInstr* getMachineInstr(unsigned Address) const {
+     if (MachineInstructions.find(Address) != MachineInstructions.end()) {
+        return MachineInstructions.at(Address);
+     }
+     return NULL;
+  }
+
+  MCInst* getMCInst(unsigned Address) const {
+    if (Instructions.find(Address) != Instructions.end()) {
+      return Instructions.at(Address);
+    }
+    return NULL;
+  }
+
   uint64_t getDebugOffset(const DebugLoc &Loc) const;
+  DebugLoc* setDebugLoc(uint64_t Address);
   void deleteFunction(MachineFunction* MF);
 private:
   object::SectionRef CurSection;
@@ -158,6 +173,7 @@ private:
   std::map<unsigned, MachineBasicBlock*> BasicBlocks;
   std::map<unsigned, MachineFunction*> Functions;
   std::map<unsigned, MCInst*> Instructions;
+  std::map<unsigned, const MachineInstr*> MachineInstructions;
 
   MachineModuleInfo *MMI;
   GCModuleInfo *GMI;

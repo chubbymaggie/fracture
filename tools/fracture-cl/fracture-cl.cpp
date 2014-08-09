@@ -51,6 +51,11 @@
 #include <inttypes.h>
 #include <signal.h>
 #include <sstream>
+		#include <unistd.h>  //new
+		#include <cstdlib>  //new
+
+
+
 // iostream is frowned upon in LLVM, but
 // we are doing console I/O here.
 #include <iostream>
@@ -60,8 +65,8 @@
 #include "DummyObjectFile.h"
 #include "CodeInv/Decompiler.h"
 #include "CodeInv/Disassembler.h"
-#include "CodeInv/InvISelDAG.h"
-#include "CodeInv/MCDirector.h"
+//#include "CodeInv/InvISelDAG.h"
+//#include "CodeInv/MCDirector.h"
 #include "Commands/Commands.h"
 
 // #define DEMANGLE  // Do name demangling
@@ -72,7 +77,7 @@
 
 using namespace llvm;
 using namespace fracture;
-
+		using std::string;  //new
 //===----------------------------------------------------------------------===//
 // Global Variables and Parameters
 //===----------------------------------------------------------------------===//
@@ -171,15 +176,9 @@ static error_code loadBinary(StringRef FileName) {
 
   TripleName = TT.str();
 
-  if (DEC) {
-    delete DEC;
-  }
-  if (DAS) {
-    delete DAS;
-  }
-  if (MCD) {
-    delete MCD;
-  }
+  delete DEC;
+  delete DAS;
+  delete MCD;
 
   MCD = new MCDirector(TripleName, "generic", FeaturesStr,
     TargetOptions(), Reloc::Default, CodeModel::Default, CodeGenOpt::Default,
@@ -333,11 +332,11 @@ static void runDecompileCommand(std::vector<std::string> &CommandLine) {
       return;
     }
   }
-
-  if (Address == 0) {
-    errs() << "runDecompileCommand: invalid address or function name.\n";
-    return;
-  }
+//  Commenting this out so raw binaries can be decompiled at 0x0
+//  if (Address == 0) {
+//    errs() << "runDecompileCommand: invalid address or function name.\n";
+//    return;
+//  }
 
   DEC->setViewMCDAGs(ViewMachineDAGs);
   DEC->setViewIRDAGs(ViewIRDAGs);
@@ -380,10 +379,11 @@ static void runDisassembleCommand(std::vector<std::string> &CommandLine) {
     }
   }
 
-  if (Address == 0) {
-    errs() << "runDisassemblerCommand: invalid address or function name.\n";
-    return;
-  }
+//  Commenting this out so raw binaries can be disassembled at 0x0
+//  if (Address == 0) {
+//    errs() << "runDisassemblerCommand: invalid address or function name.\n";
+//    return;
+//  }
 
   formatted_raw_ostream Out(outs(), false);
   Out << "Address: " << Address << "\nNumInstrs: " << NumInstrs << "\n";
@@ -515,6 +515,21 @@ static void dumpELFSymbols(const object::ELFObjectFile<ELFT>* elf,
 static void dumpCOFFSymbols(const object::COFFObjectFile *coff,
   uint64_t Address) {
 
+	const object::pe32_header *peh;
+	coff->getPE32Header(peh);
+
+	outs() << "Start Address: " << peh->AddressOfEntryPoint + peh->ImageBase << "\n";
+	outs() << "BaseOfCode: " << peh->BaseOfCode << "\n";
+	outs() << "BaseOfData: " << peh->BaseOfData << "\n";
+	outs() << "ImageBase: " << peh->ImageBase << "\n";
+
+	/* AJG: I think this could read the complete section (I have not proven it to myself yet
+	 error_code ec = coff->getRvaPtr(Address, Res);
+	 if(ec!=object::object_error::success)
+		 outs() << "Have an error?\n";
+	  */
+
+
   // Find the section index (referenced by symbol)
   int SectionIndex = -1;
   int Index = 1;
@@ -582,6 +597,7 @@ static void dumpCOFFSymbols(const object::COFFObjectFile *coff,
       aux_count = symbol->NumberOfAuxSymbols;
     }
   }
+
 }
 
 static void runSymbolsCommand(std::vector<std::string> &CommandLine) {
@@ -661,7 +677,8 @@ static void runSaveCommand(std::vector<std::string> &CommandLine) {
 /// runQuitCommand - Exits the program
 ///
 static void runQuitCommand(std::vector<std::string> &CommandLine) {
-  exit(130);                    // Note: This is for fork/exec in shell.
+	// was 130 but changed to 0 because this exit is after success
+	exit(0);  //Note: This is for fork/exec in shell.
 }
 
 static void runDumpCommand(std::vector<std::string> &CommandLine) {
@@ -760,8 +777,10 @@ static void initializeCommands() {
 
 int main(int argc, char *argv[]) {
   ProgramName = argv[0];
-  // Remove the "./" from the beginning of the program name
-  ProgramName = ProgramName.substr(2, ProgramName.length() - 2);
+  if(ProgramName.find("./")==0){
+	  // Remove the "./" from the beginning of the program name
+	  ProgramName = ProgramName.substr(2, ProgramName.length() - 2);
+  }
 
   // If no parameter is given to dish, stop execution
   if (argc < 2) {

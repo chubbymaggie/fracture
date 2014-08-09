@@ -16,21 +16,41 @@
 
 #include "CodeInv/InvISelDAG.h"
 #include "Target/ARM/ARMInvISelDAG.h"
+#include "Target/X86/X86InvISelDAG.h"
+#include "Target/PowerPC/PPCInvISelDAG.h"
 #include "llvm/IR/DataLayout.h"
+
+//#include "StringRef.h"
 
 namespace fracture {
 
 // NOTE: This needs to be generalized to select InvISelDAG's based on
 // TargetMachine Types.
-InvISelDAG* getTargetInvISelDAG(const TargetMachine *T) {
-  InvISelDAG *res = new ARMInvISelDAG(*T);
+InvISelDAG* getTargetInvISelDAG(const TargetMachine *T, const Decompiler *TheDec) {
+  //Prob needs to be conditional...
+	StringRef triple = T->getTargetTriple();
+	outs() << "Triple: " << triple.str().c_str() << "\n";
+	StringRef cpu = T->getTargetCPU();
+	outs() << "CPU: " << cpu.str().c_str() << "\n";
+
+	InvISelDAG *res = NULL;
+	if(triple.str().find("arm") == 0){
+		res = new ARMInvISelDAG(*T, CodeGenOpt::Default, TheDec);
+	} else if(triple.str().find("i386") == 0 || triple.str().find("x86_64") == 0) {
+		res = new X86InvISelDAG(*T, CodeGenOpt::Default, TheDec);
+	} else if(triple.str().find("powerpc64") == 0) {
+	  res = new PPCInvISelDAG(*T, CodeGenOpt::Default, TheDec);
+	} else {
+		outs() << "Decompiler doesn't support: " << triple.str().c_str() << cpu.str().c_str() << "\n";
+	}
   return res;
 }
 
 InvISelDAG::InvISelDAG(const TargetMachine &TMC,
-  CodeGenOpt::Level OL) {
+  CodeGenOpt::Level OL, const Decompiler *TheDec) {
   TLI = TMC.getTargetLowering();
   TM = &TMC;
+  Dec = TheDec;
 }
 
 

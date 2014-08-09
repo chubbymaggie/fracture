@@ -33,10 +33,10 @@ OmitComments("omit-comments", cl::desc("Do not generate comments"),
 namespace {
 class MatcherTableEmitter {
   const CodeInvDAGPatterns &CGP;
-  
+
   // DenseMap<TreePattern *, unsigned> NodePredicateMap;
   // std::vector<TreePredicateFn> NodePredicates;
-  
+
   StringMap<unsigned> PatternPredicateMap;
   std::vector<std::string> PatternPredicates;
 
@@ -202,15 +202,19 @@ EmitMatcher(const Matcher *N, unsigned Indent, unsigned CurrentIdx,
     return CurrentIdx - StartIdx + 1;
   }
 
-  case Matcher::RecordNode:
+  case Matcher::RecordNode: {
     OS << "OPC_RecordNode,";
-    if (!OmitComments)
+    std::string WhatFor = cast<RecordMatcher>(N)->getWhatFor();
+    // This hack fixes a specific bug where null chars get emitted in OSX. 
+    // Would be best to determine HOW this is happening, but this works for now.
+    if (!OmitComments && WhatFor[0] != 0) {
       OS.PadToColumn(CommentIndent) << "// #"
         << cast<RecordMatcher>(N)->getResultNo() << " = "
-        << cast<RecordMatcher>(N)->getWhatFor();
+        << WhatFor;
+    }
     OS << '\n';
     return 1;
-
+  }
   case Matcher::RecordChild:
     OS << "OPC_RecordChild" << cast<RecordChildMatcher>(N)->getChildNo()
        << ',';
@@ -259,11 +263,18 @@ EmitMatcher(const Matcher *N, unsigned Indent, unsigned CurrentIdx,
     return 2;
   }
 
-  case Matcher::CheckOpcode:
-    OS << "OPC_CheckOpcode, TARGET_VAL("
-       << cast<CheckOpcodeMatcher>(N)->getEnumName() << "),\n";
+  case Matcher::CheckOpcode: {
+    StringRef EnumName = cast<CheckOpcodeMatcher>(N)->getEnumName();
+    // This hack fixes a specific bug where null chars get emitted in OSX. 
+    // Would be best to determine HOW this is happening, but this works for now.
+    outs() << EnumName << "\n";
+    OS << "OPC_CheckOpcode, TARGET_VAL(";
+    for (unsigned i = 0, e = EnumName.size(); i != e; ++i) {
+	OS << EnumName[i];
+    }
+    OS << "),\n";
     return 3;
-
+  }
   case Matcher::SwitchOpcode:
   case Matcher::SwitchType: {
     unsigned StartIdx = CurrentIdx;
@@ -623,10 +634,10 @@ EmitMatcherList(const Matcher *N, unsigned Indent, unsigned CurrentIdx,
 //     for (unsigned i = 0, e = NodePredicates.size(); i != e; ++i) {
 //       // Emit the predicate code corresponding to this pattern.
 //       TreePredicateFn PredFn = NodePredicates[i];
-      
+
 //       assert(!PredFn.isAlwaysTrue() && "No code in this predicate");
 //       OS << "  case " << i << ": { // " << NodePredicates[i].getFnName() <<'\n';
-      
+
 //       OS << PredFn.getCodeToRunOnSDNode() << "\n  }\n";
 //     }
 //     OS << "  }\n";

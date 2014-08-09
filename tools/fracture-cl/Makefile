@@ -13,14 +13,17 @@ TOOLNAME=fracture-cl
 #
 # List libraries that we'll need
 #
-USEDLIBS = Commands.a FractureCodeInv.a FractureTarget.a FractureARMCodeInv.a \
-           TypeRecovery.a
+USEDLIBS = Commands.a FractureCodeInv.a FractureARMCodeInv.a \
+           FractureX86CodeInv.a FracturePowerPCCodeInv.a TypeRecovery.a
 
 #
 # LLVM Components we wish to link with.
 #
 LINK_COMPONENTS = all-targets DebugInfo MC MCParser MCDisassembler Object \
                   IRReader
+
+#LLVMLIBS = LLVMTarget.a LLVMDebugInfo.a LLVMMC.a LLVMMCParser.a \
+#           LLVMMCDisassembler.a LLVMObject.a LLVMIRReader.a
 
 
 #
