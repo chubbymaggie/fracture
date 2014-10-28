@@ -19,6 +19,8 @@
 
 using namespace llvm;
 
+#define DEBUG_TYPE "fracture-decompiler"
+
 namespace fracture {
 
 Decompiler::Decompiler(Disassembler *NewDis, Module *NewMod, raw_ostream &InfoOut, raw_ostream &ErrOut) :
@@ -134,9 +136,8 @@ Function* Decompiler::decompileFunction(unsigned Address) {
   }
 
   BI = MF->begin();
-  outs() << "-----BI------\n";
-  BI->dump();
   while (BI != BE) {
+    BI->dump();
     if (decompileBasicBlock(BI, F) == NULL) {
       printError("Unable to decompile basic block!");
     }
@@ -216,7 +217,7 @@ Function* Decompiler::decompileFunction(unsigned Address) {
   //Line below adds decompiler optimization.  Function pass manager for optimization.
   //    This is where to focus for type recovery.
   // FPM.add(createPromoteMemoryToRegisterPass()); // See Scalar.h for more.
-  FPM.add(createTypeRecoveryPass());
+  //FPM.add(createTypeRecoveryPass());
   FPM.run(*F);
 
   return F;
@@ -356,8 +357,8 @@ BasicBlock* Decompiler::decompileBasicBlock(MachineBasicBlock *MBB,
   }
   DAG->setRoot(Dummy.getValue());
 
+  printDAG(DAG);
   if (ViewIRDAGs) {
-    printDAG(DAG);
     DAG->viewGraph(MBB->getName());
   }
 

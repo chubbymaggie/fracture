@@ -19,6 +19,8 @@
 
 using namespace llvm;
 
+#define DEBUG_TYPE "armiremitter"
+
 namespace fracture {
 
 ARMIREmitter::ARMIREmitter(Decompiler *TheDec, raw_ostream &InfoOut,
@@ -43,8 +45,8 @@ Value* ARMIREmitter::visit(const SDNode *N) {
   DEBUG(Infos << "Visiting ARM specific Opcode.\n");
   switch (N->getOpcode()) {
 	default: {
-		errs() << "OpCode: " << N->getOpcode() << "\n";
-		N->dump();
+		errs() << "OpCode: " << N->getOperationName(DAG) << "\n";
+		// dyn_cast<MachineSDNode>(N);
 		llvm_unreachable("ARMIREmitter::visit - Every ARM visit should be implemented...");
 		return NULL;
 	}
@@ -105,13 +107,13 @@ Value* ARMIREmitter::visit(const SDNode *N) {
     case ARMISD::VSHL:					return visitVSHL(N);
     case ARMISD::VSHRs:					return visitVSHRs(N);
     case ARMISD::VSHRu:					return visitVSHRu(N);
-    case ARMISD::VSHLLs:				return visitVSHLLs(N);
-    case ARMISD::VSHLLu:				return visitVSHLLu(N);
-    case ARMISD::VSHLLi:				return visitVSHLLi(N);
-    case ARMISD::VSHRN:					return visitVSHRN(N);
+      //case ARMISD::VSHLLs:				return visitVSHLLs(N);
+      //case ARMISD::VSHLLu:				return visitVSHLLu(N);
+      //case ARMISD::VSHLLi:				return visitVSHLLi(N);
+      //case ARMISD::VSHRN:					return visitVSHRN(N);
     case ARMISD::VRSHRs:				return visitVRSHRs(N);
     case ARMISD::VRSHRu:				return visitVRSHRu(N);
-    case ARMISD::VRSHRN:				return visitVRSHRN(N);
+      //case ARMISD::VRSHRN:				return visitVRSHRN(N);
     case ARMISD::VQSHLs:				return visitVQSHLs(N);
     case ARMISD::VQSHLu:				return visitVQSHLu(N);
     case ARMISD::VQSHLsu:				return visitVQSHLsu(N);

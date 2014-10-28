@@ -18,7 +18,7 @@
 #ifndef StructuredModuleEditor_H_
 #define StructuredModuleEditor_H_
 
-#include "llvm/Linker.h"
+#include "llvm/Linker/Linker.h"
 #include "llvm-c/Linker.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/ADT/StringExtras.h"
@@ -36,7 +36,7 @@
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Use.h"
 #include "llvm/IRReader/IRReader.h"
-#include "llvm/Support/CallSite.h"
+#include "llvm/IR/CallSite.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/TargetSelect.h"
