@@ -17,6 +17,7 @@
 #ifndef DISASSEMBLER_H
 #define DISASSEMBLER_H
 
+#include "llvm/IR/Metadata.h"
 #include "llvm/CodeGen/GCStrategy.h"
 #include "llvm/CodeGen/GCMetadata.h"
 #include "llvm/CodeGen/MachineFunction.h"
@@ -25,24 +26,36 @@
 #include "llvm/CodeGen/MachineModuleInfo.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DebugInfo.h"
+#include "llvm/IR/DIBuilder.h"
 #include "llvm/IR/Module.h"
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCDisassembler.h"
 #include "llvm/MC/MCInstrInfo.h"
 #include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/MCSubtargetInfo.h"
+#include "llvm/Object/Error.h"
 #include "llvm/Object/ObjectFile.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/FormattedStream.h"
-#include "llvm/Support/MemoryObject.h"
-#include "llvm/Support/StringRefMemoryObject.h"
 #include "llvm/Support/TargetRegistry.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
 
 #include <sstream>
-
+#include <string>
+#include <iostream>
+#include <ostream>
+#include <iomanip>
+#include <stdio.h>
+#include <algorithm>
+#include <map>
+#include <inttypes.h>
+#include <signal.h>
+#include <sstream>
+#include <unistd.h>
+#include <cstdlib>
 #include "CodeInv/MCDirector.h"
+#include "CodeInv/FractureMemoryObject.h"
 
 using namespace llvm;
 
@@ -132,7 +145,7 @@ public:
   /// \brief Symbol accessors
   std::string getSymbolName(unsigned Address);
   const StringRef getFunctionName(unsigned Address) const;
-
+  void getRelocFunctionName(unsigned Address, StringRef &NameRef);
   /// \brief Set the current section reference in the Disassembler
   ///
   /// \param SectionName a string representing the name, e.g. ".text"
@@ -143,8 +156,9 @@ public:
     return CurSection;
   }
   const object::SectionRef getSectionByName(StringRef SectionName) const;
+  const object::SectionRef getSectionByExpression(StringRef SectionExpression) const;
   const object::SectionRef getSectionByAddress(unsigned Address) const;
-
+  FractureMemoryObject* getCurSectionMemory() const { return CurSectionMemory; }
   object::ObjectFile* getExecutable() const { return Executable; }
   MCDirector* getMCDirector() const { return MC; }
   Module* getModule() const { return TheModule; }
@@ -163,18 +177,21 @@ public:
     return NULL;
   }
 
+
+  std::map<StringRef, uint64_t> getRelocOrigins() { return RelocOrigins; };
   uint64_t getDebugOffset(const DebugLoc &Loc) const;
   DebugLoc* setDebugLoc(uint64_t Address);
   void deleteFunction(MachineFunction* MF);
 private:
   object::SectionRef CurSection;
   object::ObjectFile *Executable;
-  StringRefMemoryObject* CurSectionMemory;
+  FractureMemoryObject* CurSectionMemory;
   uint64_t CurSectionEnd;
   std::map<unsigned, MachineBasicBlock*> BasicBlocks;
   std::map<unsigned, MachineFunction*> Functions;
   std::map<unsigned, MCInst*> Instructions;
   std::map<unsigned, const MachineInstr*> MachineInstructions;
+  std::map<StringRef, uint64_t> RelocOrigins;
 
   MachineModuleInfo *MMI;
   GCModuleInfo *GMI;

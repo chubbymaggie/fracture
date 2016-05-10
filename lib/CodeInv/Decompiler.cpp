@@ -28,7 +28,7 @@ Decompiler::Decompiler(Disassembler *NewDis, Module *NewMod, raw_ostream &InfoOu
 
   assert(NewDis && "Cannot initialize decompiler with null Disassembler!");
   if (Mod == NULL) {
-    std::string ModID = Dis->getExecutable()->getLoadName().data();
+    std::string ModID = Dis->getExecutable()->getFileName().data();
     ModID += "-IR";
     Mod = new Module(StringRef(ModID), *(Dis->getMCDirector()->getContext()));
   }
@@ -80,6 +80,15 @@ void Decompiler::decompile(unsigned Address) {
         DEBUG(outs() << "Read Address as: " << format("%1" PRIx64, Addr)
           << ", " << AddrStr << "\n");
         StringRef FName = Dis->getFunctionName(Addr);
+        // Change sections to check if function address is paired with a 
+        // relocated function and then set function name accordingly
+        StringRef SectionName;
+        object::SectionRef Section = Dis->getSectionByAddress(Addr);
+        Dis->setSection(Section);
+        Dis->getRelocFunctionName(Addr, FName);
+        Section = Dis->getSectionByAddress(Address);
+        Dis->setSection(Section);
+        CI->getCalledFunction()->setName(FName);
         Function *NF = Mod->getFunction(FName);
         if (Addr != 0 && (NF == NULL || NF->empty())) {
           Children.push_back(Addr);
@@ -95,8 +104,8 @@ Function* Decompiler::decompileFunction(unsigned Address) {
   // avoiding reads to library calls and areas of memory we can't "see".
   const object::SectionRef Sect = Dis->getCurrentSection();
   uint64_t SectStart, SectEnd;
-  Sect.getAddress(SectStart);
-  Sect.getSize(SectEnd);
+  SectStart = Sect.getAddress();
+  SectEnd = Sect.getSize();
   SectEnd += SectStart;
   if (Address < SectStart || Address > SectEnd) {
     errs() << "Address out of bounds for section (is this a library call?): "
@@ -393,8 +402,7 @@ SelectionDAG* Decompiler::createDAGFromMachineBasicBlock(
   SelectionDAG *DAG =
     new SelectionDAG(*Dis->getMCDirector()->getTargetMachine(),
       CodeGenOpt::Default);
-  DAG->init(*MBB->getParent(),
-    Dis->getMCDirector()->getTargetMachine()->getTargetLowering());
+  DAG->init(*MBB->getParent());
   SDValue prevNode(DAG->getEntryNode());
 
   std::pair<SDValue, SDValue> NullVal;
@@ -581,7 +589,7 @@ void Decompiler::printSDNode(std::map<SDValue, std::string> &OpMap,
         raw_string_ostream RP(RegName);
         RP
             << PrintReg(R->getReg(),
-                DAG ? DAG->getTarget().getRegisterInfo() : 0);
+              DAG ? DAG->getTarget().getSubtargetImpl()->getRegisterInfo() : 0);
         OpMap[I.getUse().get()] = RP.str();
       } else {
         errs() << "CopyToReg with no register!?\n";
@@ -614,7 +622,8 @@ void Decompiler::printSDNode(std::map<SDValue, std::string> &OpMap,
 
       // call print to make sure OpMap is set up
       outs()
-          << PrintReg(R->getReg(), DAG ? DAG->getTarget().getRegisterInfo() : 0)
+        << PrintReg(R->getReg(),
+          DAG ? DAG->getTarget().getSubtargetImpl()->getRegisterInfo() : 0)
           << " = " << OpMap[SDValue(Op2, 0)] << "\n";
     }
     default:
@@ -627,7 +636,8 @@ void Decompiler::printSDNode(std::map<SDValue, std::string> &OpMap,
     if (R) {
       std::string RegName;
       raw_string_ostream RP(RegName);
-      RP << PrintReg(R->getReg(), DAG ? DAG->getTarget().getRegisterInfo() : 0);
+      RP << PrintReg(R->getReg(),
+        DAG ? DAG->getTarget().getSubtargetImpl()->getRegisterInfo() : 0);
       OpMap[SDValue(CurNode, 0)] = RP.str();
     } else {
       errs() << "CopyFromReg with no register!?\n";
